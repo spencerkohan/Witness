@@ -8,9 +8,47 @@
 
 import Foundation
 
+
+#if os(macOS)
+
+public typealias FileEventHandler = (_ events: [FileEvent]) -> ()
+
 public struct FileEvent {
     public let path: String
     public let flags: FileEventFlags
+}
+
+extension FSEventType {
+    
+    init(_ flags: FileEventFlags) {
+        var event: FSEventType = .none
+        if flags.contains(.ItemCreated) {
+            event.insert(.create)
+        }
+        if flags.contains(.ItemModified) {
+            event.insert(.modify)
+        }
+        if flags.contains(.ItemRemoved) {
+            event.insert(.delete)
+        }
+        self = event
+    }
+    
+    var fileEventFlags: FileEventFlags {
+        
+        var flags = FileEventFlags.None
+        if self.contains(.create) {
+            flags.insert(.ItemCreated)
+        }
+        if self.contains(.modify) {
+            flags.insert(.ItemModified)
+        }
+        if self.contains(.delete) {
+            flags.insert(.ItemRemoved)
+        }
+        
+        return flags
+    }
 }
 
 public struct FileEventFlags: OptionSet {
@@ -128,3 +166,5 @@ extension FileEventFlags: CustomStringConvertible {
         return strings.joined(separator: ",")
     }
 }
+
+#endif

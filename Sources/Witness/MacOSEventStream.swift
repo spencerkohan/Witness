@@ -17,7 +17,11 @@ public enum StreamType {
     case diskBased
 }
 
-class EventStream {
+
+#if os(macOS)
+
+
+class MacOSEventStream: EventStreamProtocol {
     let paths: [String]
 
     // use explicitly unwrapped optional so we can pass self as context to stream
@@ -30,7 +34,7 @@ class EventStream {
         
         func callBack(stream: ConstFSEventStreamRef, clientCallbackInfo: UnsafeMutableRawPointer?, numEvents: Int, eventPaths: UnsafeMutableRawPointer, eventFlags: UnsafePointer<FSEventStreamEventFlags>, eventIDs: UnsafePointer<FSEventStreamEventId>) {
 
-            let eventStream = unsafeBitCast(clientCallbackInfo, to: EventStream.self)
+            let eventStream = unsafeBitCast(clientCallbackInfo, to: MacOSEventStream.self)
             let paths = unsafeBitCast(eventPaths, to: NSArray.self)
             
             var events = [FileEvent]()
@@ -93,3 +97,5 @@ public struct EventStreamCreateFlags: OptionSet {
     public static let FileEvents = EventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents)
     public static let MarkSelf = EventStreamCreateFlags(kFSEventStreamCreateFlagMarkSelf)
 }
+
+#endif

@@ -8,6 +8,7 @@
 
 import XCTest
 @testable import Witness
+import Dispatch
 
 class WitnessTests: XCTestCase {
     static let expectationTimeout = 2.0
@@ -29,6 +30,7 @@ class WitnessTests: XCTestCase {
     }
     
     override func setUp() {
+        print("Setting up...")
         super.setUp()
         
         // create tests directory
@@ -49,29 +51,44 @@ class WitnessTests: XCTestCase {
         super.tearDown()
     }
     
-    func waitForPendingEvents() {
-        print("wait for pending changes...")
-
-        var didArrive = false
-        witness = Witness(paths: [testsDirectory], flags: [.NoDefer, .WatchRoot], latency: WitnessTests.latency) { events in
-            print("pending changes arrived")
-            didArrive = true
-        }
-        
-        while !didArrive {
-            CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 0.02, true);
-        }
-    }
+//    func waitForPendingEvents() {
+//        print("wait for pending changes...")
+//
+//        var didArrive = false
+//        witness = Witness(paths: [testsDirectory], flags: [.NoDefer, .WatchRoot], latency: WitnessTests.latency) { events in
+//            print("pending changes arrived")
+//            didArrive = true
+//        }
+//
+//        while !didArrive {
+//            CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 0.02, true);
+//        }
+//    }
+    
+    //    func waitForPendingEvents() {
+    //        print("wait for pending changes...")
+    //
+    //        var didArrive = false
+    //        witness = Witness(paths: [testsDirectory], flags: [.NoDefer, .WatchRoot], latency: WitnessTests.latency) { events in
+    //            print("pending changes arrived")
+    //            didArrive = true
+    //        }
+    //
+    //        while !didArrive {
+    //            CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 0.02, true);
+    //        }
+    //    }
     
     func delay(_ interval: TimeInterval, block: @escaping () -> ()) {
-        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + Double(Int64(interval * Double(NSEC_PER_SEC))) / Double(NSEC_PER_SEC), execute: block)
+        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + interval, execute: block)
     }
     
     func testThatFileCreationIsObserved() {
         var expectation: XCTestExpectation? = self.expectation(description: "File creation should trigger event")
-        witness = Witness(paths: [testsDirectory], flags: .FileEvents) { events in
+//        witness = Witness(paths: [testsDirectory], flags: .FileEvents) { events in
+        witness = Witness(paths: [testsDirectory]) { events in
             for event in events {
-                if event.flags.contains(.ItemCreated) {
+                if event.type == .create {
                     expectation?.fulfill()
                     expectation = nil
                 }
@@ -84,7 +101,7 @@ class WitnessTests: XCTestCase {
     func testThatFileRemovalIsObserved() {
         let expectation = self.expectation(description: "File removal should trigger event")
         fileManager.createFile(atPath: filePath, contents: nil, attributes: nil)
-        waitForPendingEvents()
+//        waitForPendingEvents()
         witness = Witness(paths: [testsDirectory]) { events in
             expectation.fulfill()
         }
@@ -95,7 +112,7 @@ class WitnessTests: XCTestCase {
     func testThatFileChangesAreObserved() {
         let expectation = self.expectation(description: "File changes should trigger event")
         fileManager.createFile(atPath: filePath, contents: nil, attributes: nil)
-        waitForPendingEvents()
+//        waitForPendingEvents()
         witness = Witness(paths: [testsDirectory]) { events in
             expectation.fulfill()
         }
@@ -103,30 +120,30 @@ class WitnessTests: XCTestCase {
         waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
     }
     
-    func testThatRootDirectoryIsNotObserved() {
-        let expectation = self.expectation(description: "Removing root directory should not trigger event if .WatchRoot flag is not set")
-        var didReceiveEvent = false
-        witness = Witness(paths: [testsDirectory], flags: .NoDefer) { events in
-            didReceiveEvent = true
-        }
-        
-        delay(WitnessTests.latency * 2) {
-            if didReceiveEvent == false {
-                expectation.fulfill()
-            }
-        }
-
-        try! fileManager.removeItem(atPath: testsDirectory)
-        waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
-    }
+//    func testThatRootDirectoryIsNotObserved() {
+//        let expectation = self.expectation(description: "Removing root directory should not trigger event if .WatchRoot flag is not set")
+//        var didReceiveEvent = false
+//        witness = Witness(paths: [testsDirectory], flags: .NoDefer) { events in
+//            didReceiveEvent = true
+//        }
+//
+//        delay(WitnessTests.latency * 2) {
+//            if didReceiveEvent == false {
+//                expectation.fulfill()
+//            }
+//        }
+//
+//        try! fileManager.removeItem(atPath: testsDirectory)
+//        waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
+//    }
     
-    func testThatRootDirectoryIsObserved() {
-        let expectation = self.expectation(description: "Removing root directory should trigger event if .WatchRoot flag is set")
-        witness = Witness(paths: [testsDirectory], flags: .WatchRoot) { events in
-            expectation.fulfill()
-        }
-        try! fileManager.removeItem(atPath: testsDirectory)
-        waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
-    }
+//    func testThatRootDirectoryIsObserved() {
+//        let expectation = self.expectation(description: "Removing root directory should trigger event if .WatchRoot flag is set")
+//        witness = Witness(paths: [testsDirectory], flags: .WatchRoot) { events in
+//            expectation.fulfill()
+//        }
+//        try! fileManager.removeItem(atPath: testsDirectory)
+//        waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
+//    }
 
 }

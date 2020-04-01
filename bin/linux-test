@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "testing in docker context"
+
+echo "generating LinuxMain.swift..."
+swift test --generate-linuxmain
+
+cd LinuxTest && docker-compose up

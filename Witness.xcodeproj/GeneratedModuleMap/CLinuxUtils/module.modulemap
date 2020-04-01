@@ -1,0 +1,4 @@
+module CLinuxUtils {
+    umbrella header "/Users/spencerkohan/Projects/Personal/SwiftModules/Witness/Sources/CLinuxUtils/include/CLinuxUtils/CLinuxUtils.h"
+    export *
+}

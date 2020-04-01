@@ -12,12 +12,11 @@ let package = Package(
     dependencies: [
     ],
     targets: [
-        .target(
-            name: "Witness",
-            dependencies: []),
+        .target(name: "Witness", dependencies: ["CLinuxUtils"]),
         .testTarget(
             name: "WitnessTests",
             dependencies: ["Witness"]),
+        .target(name: "CLinuxUtils", dependencies: []),
     ],
     swiftLanguageVersions: [.v4, .v4_2, .v5]
 )
