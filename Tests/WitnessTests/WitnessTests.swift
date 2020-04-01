@@ -35,6 +35,8 @@ class WitnessTests: XCTestCase {
         
         // create tests directory
         print("create tests directory at path: \(testsDirectory)")
+        print("file path: \(filePath)")
+        try? fileManager.removeItem(atPath: testsDirectory)
         try! fileManager.createDirectory(atPath: testsDirectory, withIntermediateDirectories: true, attributes: nil)
     }
     
@@ -86,37 +88,53 @@ class WitnessTests: XCTestCase {
     func testThatFileCreationIsObserved() {
         var expectation: XCTestExpectation? = self.expectation(description: "File creation should trigger event")
 //        witness = Witness(paths: [testsDirectory], flags: .FileEvents) { events in
-        witness = Witness(paths: [testsDirectory]) { events in
+        let witness = Witness(paths: [testsDirectory], watchOptions: .all) { events in
+            print("Events: \(events)")
             for event in events {
-                if event.type == .create {
-                    expectation?.fulfill()
-                    expectation = nil
+                if event.path.hasSuffix(self.filePath), event.type.contains(.updated)  {
+//                    DispatchQueue.main.sync {
+                        expectation?.fulfill()
+                        expectation = nil
+//                    }
                 }
             }
         }
         fileManager.createFile(atPath: filePath, contents: nil, attributes: nil)
         waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
     }
-    
+//
     func testThatFileRemovalIsObserved() {
         let expectation = self.expectation(description: "File removal should trigger event")
         fileManager.createFile(atPath: filePath, contents: nil, attributes: nil)
 //        waitForPendingEvents()
-        witness = Witness(paths: [testsDirectory]) { events in
-            expectation.fulfill()
+        let witness = Witness(paths: [testsDirectory], watchOptions: .all) { events in
+            for event in events {
+                if event.path.hasSuffix(self.filePath), event.type.contains(.deleted) {
+                    expectation.fulfill()
+                }
+            }
         }
         try! fileManager.removeItem(atPath: filePath)
         waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
     }
-    
+
     func testThatFileChangesAreObserved() {
         let expectation = self.expectation(description: "File changes should trigger event")
         fileManager.createFile(atPath: filePath, contents: nil, attributes: nil)
 //        waitForPendingEvents()
-        witness = Witness(paths: [testsDirectory]) { events in
-            expectation.fulfill()
+        witness = Witness(paths: [testsDirectory], eventTypes: .updated) { events in
+            for event in events {
+                if event.path.hasSuffix(self.filePath), event.type.contains(.updated)  {
+                    expectation.fulfill()
+                }
+            }
         }
         try! "Hello changes".write(toFile: filePath, atomically: true, encoding: String.Encoding.utf8)
+        
+        let dirContents = try? FileManager.default.contentsOfDirectory(atPath: testsDirectory)
+        
+        print(dirContents ?? [])
+        
         waitForExpectations(timeout: WitnessTests.expectationTimeout, handler: nil)
     }
     

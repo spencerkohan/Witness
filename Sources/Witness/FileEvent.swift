@@ -23,13 +23,19 @@ extension FSEventType {
     init(_ flags: FileEventFlags) {
         var event: FSEventType = .none
         if flags.contains(.ItemCreated) {
-            event.insert(.create)
+            event.insert(.created)
+            event.insert(.updated)
         }
         if flags.contains(.ItemModified) {
             event.insert(.modify)
+            event.insert(.updated)
         }
         if flags.contains(.ItemRemoved) {
-            event.insert(.delete)
+            event.insert(.deleted)
+        }
+        if flags.contains(.ItemRenamed) {
+            event.insert(.movedTo)
+            event.insert(.updated)
         }
         self = event
     }
@@ -37,13 +43,13 @@ extension FSEventType {
     var fileEventFlags: FileEventFlags {
         
         var flags = FileEventFlags.None
-        if self.contains(.create) {
+        if self.contains(.created) {
             flags.insert(.ItemCreated)
         }
         if self.contains(.modify) {
             flags.insert(.ItemModified)
         }
-        if self.contains(.delete) {
+        if self.contains(.deleted) {
             flags.insert(.ItemRemoved)
         }
         

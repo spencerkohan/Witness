@@ -14,16 +14,60 @@ public enum Recursion {
     case unlimited
 }
 
-public struct FSEventType: OptionSet {
+public struct FSEventType: OptionSet, CustomDebugStringConvertible {
     public var rawValue: UInt8
     public init(rawValue: UInt8) {
         self.rawValue = rawValue
     }
     public static let none: FSEventType = FSEventType(rawValue: 0)
-    public static let create: FSEventType = FSEventType(rawValue: 1)
-    public static let delete: FSEventType = FSEventType(rawValue: 1 << 1)
+    public static let created: FSEventType = FSEventType(rawValue: 1)
+    public static let deleted: FSEventType = FSEventType(rawValue: 1 << 1)
     public static let modify: FSEventType = FSEventType(rawValue: 1 << 2)
-    public static let all: FSEventType = [.create, .delete, .modify]
+    public static let movedTo: FSEventType = FSEventType(rawValue: 1 << 3)
+    public static let movedFrom: FSEventType = FSEventType(rawValue: 1 << 4)
+    public static let updated: FSEventType = FSEventType(rawValue: 1 << 5)
+    public static let all: FSEventType = [.created, .deleted, .modify, .movedTo, .movedFrom, .updated]
+    
+    public var debugDescription: String {
+        
+        var components = [String]()
+        
+        if self.contains(.created) {
+            components.append("create")
+        }
+        if self.contains(.deleted) {
+            components.append("delete")
+        }
+        if self.contains(.modify) {
+            components.append("modify")
+        }
+        if self.contains(.movedTo) {
+            components.append("movedTo")
+        }
+        if self.contains(.movedFrom) {
+            components.append("movedFrom")
+        }
+        if self.contains(.updated) {
+            components.append("update")
+        }
+        if components.count == 0 {
+            return "[none]"
+        }
+        return "[\(components.joined(separator: ", "))]"
+        
+    }
+    
+}
+
+public struct WatchOption: OptionSet {
+    public var rawValue: UInt8
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+    public static let none: WatchOption = WatchOption(rawValue: 0)
+    public static let file: WatchOption = WatchOption(rawValue: 1)
+    public static let directory: WatchOption = WatchOption(rawValue: 1 << 1)
+    public static let all: WatchOption = [.file, .directory]
 }
 
 public struct FileSystemEvent {
@@ -51,18 +95,25 @@ public struct Witness {
     
     public init(paths: [String],
                 eventTypes: FSEventType = .all,
+                watchOptions: WatchOption = .all,
                 latency: TimeInterval = 1.0,
                 recursion: Recursion = .unlimited,
                 changeHandler: @escaping EventHandler) {
 
         #if os(Linux)
-            self.stream = INotifyEventStream(eventHandler: changeHandler)
+            self.stream = INotifyEventStream(options: watchOptions, eventHandler: changeHandler)
             for path in paths {
                 self.stream.add(path: path, eventMask: eventTypes.mask, recursion: recursion)
             }
             stream.start()
         #elseif os(macOS)
-        self.stream = MacOSEventStream(paths: paths, flags: .None, latency: latency, changeHandler: { events in
+        
+        var flags: EventStreamCreateFlags = .None
+        if watchOptions.contains(.file) {
+            flags.insert(.FileEvents)
+        }
+        
+        self.stream = MacOSEventStream(paths: paths, flags: flags, latency: latency, changeHandler: { events in
             let mapped = events.map {
                 FileSystemEvent(path: $0.path, type: FSEventType($0.flags))
             }

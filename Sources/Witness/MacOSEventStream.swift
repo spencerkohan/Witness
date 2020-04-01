@@ -17,9 +17,7 @@ public enum StreamType {
     case diskBased
 }
 
-
 #if os(macOS)
-
 
 class MacOSEventStream: EventStreamProtocol {
     let paths: [String]

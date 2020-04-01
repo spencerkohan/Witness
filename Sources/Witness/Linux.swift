@@ -15,31 +15,57 @@ import CLinuxUtils
 
 typealias EventMask = UInt32
 
+extension EventMask {
+    func contains(_ mask: Int32) -> Bool {
+        return self & EventMask(mask) > 0
+    }
+}
+
 extension FSEventType {
     init(mask: EventMask) {
         var type: FSEventType = .none
         if mask & UInt32(IN_CREATE) > 0 {
-            type = [type, .create]
+            type = [type, .created]
+            type.insert(.updated)
         }
         if mask & UInt32(IN_DELETE) > 0 {
-            type.insert(.delete)
+            type.insert(.deleted)
         }
         if mask & UInt32(IN_MODIFY) > 0 {
             type.insert(.modify)
+            type.insert(.updated)
+        }
+        if mask & UInt32(IN_MOVED_TO) > 0 {
+            type.insert(.movedTo)
+            type.insert(.updated)
+        }
+        if mask & UInt32(IN_MOVED_FROM) > 0 {
+            type.insert(.movedFrom)
         }
         self = type
     }
     
     var mask: EventMask {
         var mask: EventMask = 0
-        if self.contains(.create) {
+        if self.contains(.created) {
             mask = mask | EventMask(IN_CREATE)
         }
         if self.contains(.modify) {
             mask = mask | EventMask(IN_MODIFY)
         }
-        if self.contains(.delete) {
+        if self.contains(.deleted) {
             mask = mask | EventMask(IN_DELETE)
+        }
+        if self.contains(.movedTo) {
+            mask = mask | EventMask(IN_MOVED_TO)
+        }
+        if self.contains(.movedFrom) {
+            mask = mask | EventMask(IN_MOVED_FROM)
+        }
+        if self.contains(.updated) {
+            mask = mask | EventMask(IN_MOVED_TO)
+            mask = mask | EventMask(IN_MODIFY)
+            mask = mask | EventMask(IN_CREATE)
         }
         return mask
     }
@@ -79,7 +105,7 @@ class INotifyEventStream: EventStreamProtocol {
         }
     }
 
-    
+    let options: WatchOption
     var fileDescriptor: Int32 = 0
     var directories = [WatcherDescriptor: WatchConfig]()
     var eventHandler: EventHandler
@@ -104,13 +130,19 @@ class INotifyEventStream: EventStreamProtocol {
         byteCount: (1024 * (EVENT_SIZE + 16)),
         alignment: MemoryLayout<inotify_event>.alignment)
     
-    init(eventHandler: @escaping EventHandler) {
+    init(options: WatchOption, eventHandler: @escaping EventHandler) {
+        self.options = options
         self.eventHandler = eventHandler
         fileDescriptor = sync { inotify_init(); }
     }
     
     deinit {
         eventBuffer.deallocate()
+        for wd in directories.keys {
+            inotify_rm_watch(fileDescriptor, wd)
+        }
+        close(fileDescriptor)
+        
     }
     
     func add(
@@ -118,7 +150,7 @@ class INotifyEventStream: EventStreamProtocol {
         eventMask: EventMask,
         recursion: Recursion = .unlimited
     ) {
-        let wd = sync { inotify_add_watch(fileDescriptor, path, eventMask) }
+        let wd = sync { inotify_add_watch(fileDescriptor, path, eventMask | EventMask(IN_MOVED_TO) | EventMask(IN_MOVED_FROM)) }
         
         directories[wd] = WatchConfig(
             path: path,
@@ -145,6 +177,26 @@ class INotifyEventStream: EventStreamProtocol {
         }
     }
     
+    func remove(_ wd: WatcherDescriptor) {
+        
+        
+//        let fm = FileManager.default
+        guard let _ = directories[wd] else { return }
+        inotify_rm_watch(fileDescriptor, wd)
+        directories[wd] = nil
+        
+//        let path = config.path
+//
+//        guard let subpaths = try? fm.subpathsOfDirectory(atPath: path) else { return }
+//        let wds = directories.filter { wd, config }
+//        for subpath in subpaths {
+//            add(path: path.appendingPathComponent(subpath), eventMask: eventMask, recursion: .withDepth(depth-1))
+//        }
+//
+         
+        
+    }
+    
     func start() {
         self.listening = true
         eventQueue.async {
@@ -164,6 +216,9 @@ class INotifyEventStream: EventStreamProtocol {
     }
     
     func readEvents() -> [FileSystemEvent] {
+        
+        print("Reading events...")
+        
         var events: [FileSystemEvent] = []
         
         var length: Int = 0
@@ -197,7 +252,7 @@ class INotifyEventStream: EventStreamProtocol {
             let eventType = FSEventType(mask: mask)
             let path = watchConfig.path.appending(pathComponent: name)
             
-            if eventType.contains(.create) && isDir(mask) {
+            if eventType.contains(.created) && isDir(mask) {
                 switch watchConfig.recursion {
                 case .none:
                     break
@@ -209,9 +264,35 @@ class INotifyEventStream: EventStreamProtocol {
                 }
             }
             
-            if eventType.contains(.delete) && isDir(mask) {
-                // TODO: implement removal
+            if eventType.contains(.deleted) && isDir(mask) {
+                remove(wd)
             }
+            
+
+            print("Event: \(path)")
+            print("\teventType: \(eventType)")
+            print("\tmask: \(mask)")
+            
+//            var isDir = mask.contains(IN_ISDIR)
+            if isDir(mask) && !options.contains(.directory) {
+                print("> Ignoring...")
+                continue
+            }
+            if !isDir(mask) && !options.contains(.file) {
+                print("> Ignoring...")
+                continue
+            }
+            if eventType == .none {
+                print("> Ignoring: eventType == .none")
+                continue
+            }
+            
+            if watchConfig.eventMask & mask == 0 {
+                print("> Ignoring: watchConfig.mask & mask == 0")
+                continue
+            }
+            
+            print("> Appending...")
             
             events.append(
                 FileSystemEvent(
