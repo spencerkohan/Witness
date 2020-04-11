@@ -71,8 +71,8 @@ public struct WatchOption: OptionSet {
 }
 
 public struct FileSystemEvent {
-    let path: String
-    let type: FSEventType
+    public let path: String
+    public let type: FSEventType
 }
 
 public typealias EventHandler = ([FileSystemEvent])->()
